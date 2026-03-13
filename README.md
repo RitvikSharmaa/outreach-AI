@@ -87,7 +87,7 @@
 ![Company Profile](./screenshots/outreach%204.png)
 *Manage all discovered contacts with verified emails, titles, and departments*
 
-### SMTP Configuration & Testing
+### edit persnolized and generated email sequences
 ![Settings](./screenshots/outreach%203.png)
 *Easy SMTP setup with one-click test email verification*
 
