@@ -11,16 +11,15 @@ async function getAuthHeaders() {
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
   
-  if (session?.access_token) {
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session.access_token}`
-    };
-  }
-  
-  return {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json'
   };
+  
+  if (session?.access_token) {
+    headers['Authorization'] = `Bearer ${session.access_token}`;
+  }
+  
+  return headers;
 }
 
 export default function ProspectsPage() {
