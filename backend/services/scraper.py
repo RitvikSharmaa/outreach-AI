@@ -1,4 +1,3 @@
-from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
 import asyncio
 import requests
@@ -8,28 +7,8 @@ settings = get_settings()
 
 class ScraperService:
     def __init__(self):
-        self.timeout = settings.scraper_timeout * 1000  # Convert to ms
+        self.timeout = settings.scraper_timeout
         self.user_agent = settings.scraper_user_agent
-    
-    async def scrape_with_playwright(self, url: str) -> str:
-        """Scrape using Playwright (handles JavaScript)"""
-        try:
-            print(f"Trying Playwright for: {url}")
-            async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
-                context = await browser.new_context(user_agent=self.user_agent)
-                page = await context.new_page()
-                
-                await page.goto(url, timeout=self.timeout, wait_until="domcontentloaded")
-                await page.wait_for_timeout(3000)
-                
-                content = await page.content()
-                await browser.close()
-                
-                return content
-        except Exception as e:
-            print(f"Playwright error: {e}")
-            return ""
     
     def scrape_with_requests(self, url: str) -> str:
         """Scrape using requests (faster, no JavaScript)"""
@@ -80,13 +59,8 @@ class ScraperService:
             print(f"Jina AI succeeded: {len(text_content)} characters")
             return text_content[:8000]
         
-        # Try Method 2: Playwright (for JS-heavy sites)
-        html_content = await self.scrape_with_playwright(url)
-        
-        # Try Method 3: Requests (fallback)
-        if not html_content or len(html_content) < 500:
-            print("Playwright failed, trying requests...")
-            html_content = self.scrape_with_requests(url)
+        # Try Method 2: Requests (fallback)
+        html_content = self.scrape_with_requests(url)
         
         if not html_content:
             print("All scraping methods failed")
