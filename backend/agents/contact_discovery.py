@@ -1,36 +1,54 @@
 from typing import Dict, List, Any
 from services.llm_client import get_llm_client
 from services.scraper import get_scraper
+from services.email_finder import get_email_finder
 import json
 import re
 from urllib.parse import urlparse
 
 async def get_contact_discovery_agent(company_name: str, company_url: str, company_data: Dict[str, Any] = None) -> Dict[str, Any]:
     """
-    Contact Discovery Agent - Finds REAL people ONLY
-    NO FAKE CONTACTS - Only returns people we can actually find
+    Contact Discovery Agent - Finds REAL people with REAL emails
+    Uses Hunter.io and email verification to find verified emails
     """
-    print(f"=== FINDING REAL CONTACTS for: {company_name} ===")
+    print(f"=== FINDING REAL CONTACTS WITH REAL EMAILS for: {company_name} ===")
     
     domain = urlparse(company_url).netloc.replace('www.', '')
+    email_finder = get_email_finder()
     
     real_contacts = []
     
-    # Method 1: Scrape company website
-    print("Method 1: Scraping company website...")
-    scraped_contacts = await scrape_company_website(company_url, domain)
+    # Method 1: Try Hunter.io to get ALL company emails first
+    print("Method 1: Searching Hunter.io for company emails...")
+    hunter_contacts = await email_finder.find_company_emails(domain)
+    if len(hunter_contacts) > 0:
+        print(f"✓ Found {len(hunter_contacts)} VERIFIED emails from Hunter.io")
+        for contact in hunter_contacts:
+            if contact.get('name') and len(contact.get('name', '').split()) >= 2:
+                real_contacts.append({
+                    "name": contact['name'],
+                    "title": contact.get('title', ''),
+                    "email": contact['email'],
+                    "department": infer_department(contact.get('title', '')),
+                    "confidence": "high",
+                    "source": "hunter_verified"
+                })
+    
+    # Method 2: Scrape company website
+    print("Method 2: Scraping company website...")
+    scraped_contacts = await scrape_company_website(company_url, domain, email_finder)
     real_contacts.extend(scraped_contacts)
     print(f"✓ Found {len(scraped_contacts)} people from website")
     
-    # Method 2: Use LLM to find known people
-    print("Method 2: Searching for known leadership...")
-    llm_contacts = await search_for_real_people(company_name, domain, company_data)
+    # Method 3: Use LLM to find known people, then verify emails
+    print("Method 3: Searching for known leadership...")
+    llm_contacts = await search_for_real_people(company_name, domain, company_data, email_finder)
     real_contacts.extend(llm_contacts)
     print(f"✓ Found {len(llm_contacts)} people from search")
     
     # Deduplicate
     unique_contacts = deduplicate_contacts(real_contacts)
-    print(f"✓ Total unique REAL contacts: {len(unique_contacts)}")
+    print(f"✓ Total unique REAL contacts with REAL emails: {len(unique_contacts)}")
     
     # If we found NO real people, return generic contact
     if len(unique_contacts) == 0:
@@ -41,7 +59,8 @@ async def get_contact_discovery_agent(company_name: str, company_url: str, compa
                     "name": f"Contact at {company_name}",
                     "title": "Decision Maker",
                     "email": f"contact@{domain}",
-                    "department": "General"
+                    "department": "General",
+                    "confidence": "low"
                 }
             ]
         }
@@ -49,8 +68,8 @@ async def get_contact_discovery_agent(company_name: str, company_url: str, compa
     return {"contacts": unique_contacts[:15]}
 
 
-async def scrape_company_website(base_url: str, domain: str) -> List[Dict[str, Any]]:
-    """Scrape company website for REAL people"""
+async def scrape_company_website(base_url: str, domain: str, email_finder) -> List[Dict[str, Any]]:
+    """Scrape company website for REAL people with VERIFIED emails"""
     contacts = []
     scraper = get_scraper()
     
@@ -69,7 +88,7 @@ async def scrape_company_website(base_url: str, domain: str) -> List[Dict[str, A
         try:
             html = await scraper.scrape(url)
             if html and len(html) > 500:
-                people = await extract_people_from_html(html, domain)
+                people = await extract_people_from_html(html, domain, email_finder)
                 if len(people) > 0:
                     contacts.extend(people)
                     print(f"  ✓ Found {len(people)} at {url}")
@@ -79,8 +98,8 @@ async def scrape_company_website(base_url: str, domain: str) -> List[Dict[str, A
     return contacts
 
 
-async def extract_people_from_html(html: str, domain: str) -> List[Dict[str, Any]]:
-    """Extract REAL people from HTML using LLM"""
+async def extract_people_from_html(html: str, domain: str, email_finder) -> List[Dict[str, Any]]:
+    """Extract REAL people from HTML and find their REAL emails"""
     llm_client = get_llm_client()
     
     # Truncate HTML
@@ -128,12 +147,16 @@ Return ONLY valid JSON."""
             title = person.get('title', '').strip()
             
             if name and len(name.split()) >= 2:
-                email = generate_email(name, domain)
+                # Find REAL email using email finder
+                email_result = await email_finder.find_email(name, domain, title)
+                
                 contacts.append({
                     "name": name,
                     "title": title,
-                    "email": email,
-                    "department": infer_department(title)
+                    "email": email_result['email'],
+                    "department": infer_department(title),
+                    "confidence": email_result['confidence'],
+                    "source": email_result['source']
                 })
         
         return contacts
@@ -142,8 +165,8 @@ Return ONLY valid JSON."""
         return []
 
 
-async def search_for_real_people(company_name: str, domain: str, company_data: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Use LLM to find REAL known people at the company"""
+async def search_for_real_people(company_name: str, domain: str, company_data: Dict[str, Any], email_finder) -> List[Dict[str, Any]]:
+    """Use LLM to find REAL known people, then find their REAL emails"""
     llm_client = get_llm_client()
     
     company_info = f"Company: {company_name}\nWebsite: https://{domain}"
@@ -165,8 +188,7 @@ Return in JSON:
   "contacts": [
     {{
       "name": "Full name (ONLY if you can verify)",
-      "title": "Job title",
-      "email": "firstname.lastname@{domain}"
+      "title": "Job title"
     }}
   ]
 }}
@@ -188,32 +210,29 @@ Return ONLY valid JSON."""
         
         for person in data.get('contacts', []):
             name = person.get('name', '').strip()
+            title = person.get('title', '')
+            
             # Validate it's a real name (not a title)
             if name and len(name.split()) >= 2:
                 name_lower = name.lower()
                 # Skip if name contains job title words
                 if not any(word in name_lower for word in ['ceo', 'vp', 'director', 'head', 'manager', 'chief']):
+                    # Find REAL email
+                    email_result = await email_finder.find_email(name, domain, title)
+                    
                     contacts.append({
                         "name": name,
-                        "title": person.get('title', ''),
-                        "email": person.get('email', ''),
-                        "department": infer_department(person.get('title', ''))
+                        "title": title,
+                        "email": email_result['email'],
+                        "department": infer_department(title),
+                        "confidence": email_result['confidence'],
+                        "source": email_result['source']
                     })
         
         return contacts
     except Exception as e:
         print(f"  Error searching for people: {e}")
         return []
-
-
-def generate_email(name: str, domain: str) -> str:
-    """Generate email from name"""
-    parts = name.lower().strip().split()
-    if len(parts) >= 2:
-        first = re.sub(r'[^a-z]', '', parts[0])
-        last = re.sub(r'[^a-z]', '', parts[-1])
-        return f"{first}.{last}@{domain}"
-    return f"contact@{domain}"
 
 
 def infer_department(title: str) -> str:

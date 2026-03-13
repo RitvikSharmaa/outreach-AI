@@ -1,0 +1,19 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Gradient background -->
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2563eb;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7c3aed;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="32" cy="32" r="32" fill="url(#grad)"/>
+  
+  <!-- Paper airplane icon (autopilot symbol) -->
+  <path d="M 20 44 L 32 20 L 44 44 L 32 38 Z" fill="white" opacity="0.95"/>
+  <path d="M 32 38 L 32 52" stroke="white" stroke-width="2.5" stroke-linecap="round" opacity="0.95"/>
+  
+  <!-- Lightning bolt for AI/automation -->
+  <path d="M 38 24 L 34 32 L 38 32 L 36 40" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

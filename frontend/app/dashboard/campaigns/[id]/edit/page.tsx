@@ -19,10 +19,16 @@ export default function EmailEditorPage() {
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
+    if (!campaignId || campaignId === "undefined") {
+      setLoading(false);
+      return;
+    }
     loadData();
   }, [campaignId]);
 
   const loadData = async () => {
+    if (!campaignId || campaignId === "undefined") return;
+    
     try {
       const [emailsData, prospectsData, campaignData] = await Promise.all([
         api.campaigns.getEmails(campaignId),
@@ -83,7 +89,47 @@ export default function EmailEditorPage() {
     );
   }
 
+  // Handle case when no emails are found
+  if (!emails || emails.length === 0) {
+    return (
+      <div className="w-full max-w-4xl mx-auto text-center py-20 space-y-4">
+        <Mail size={64} className="mx-auto text-slate-300" />
+        <h2 className="text-2xl font-bold text-slate-900">No Email Sequence Found</h2>
+        <p className="text-slate-600">
+          This campaign doesn't have any emails yet. Go back and generate an email sequence first.
+        </p>
+        <Link 
+          href={`/dashboard/campaigns/${campaignId}`}
+          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors"
+        >
+          <ArrowLeft size={16} />
+          Back to Campaign
+        </Link>
+      </div>
+    );
+  }
+
   const currentEmail = emails.find(e => e.step_number === selectedStep);
+  
+  // Handle case when selected email doesn't exist
+  if (!currentEmail) {
+    return (
+      <div className="w-full max-w-4xl mx-auto text-center py-20 space-y-4">
+        <Mail size={64} className="mx-auto text-slate-300" />
+        <h2 className="text-2xl font-bold text-slate-900">Email Not Found</h2>
+        <p className="text-slate-600">
+          The selected email step doesn't exist. Try refreshing the page.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors"
+        >
+          Refresh Page
+        </button>
+      </div>
+    );
+  }
+
   const emailTypes = ["intro", "value", "social_proof", "reminder", "breakup"];
 
   return (

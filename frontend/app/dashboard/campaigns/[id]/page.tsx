@@ -26,28 +26,71 @@ export default function CampaignDetailPage() {
   const campaignId = params.id as string;
   
   const [campaign, setCampaign] = useState<any>(null);
+  const [prospects, setProspects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [researching, setResearching] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
+    if (!campaignId || campaignId === "undefined") {
+      setLoading(false);
+      return;
+    }
+    
     loadCampaign();
+    loadProspects();
     const interval = setInterval(() => {
-      if (campaign?.status === "researching") {
+      if (campaign?.status === "researching" || researching) {
         loadCampaign();
+        loadProspects();
       }
     }, 3000);
     return () => clearInterval(interval);
-  }, [campaignId]);
+  }, [campaignId, researching]);
 
   const loadCampaign = async () => {
+    if (!campaignId || campaignId === "undefined") return;
+    
     try {
       const data = await api.campaigns.get(campaignId);
       setCampaign(data);
       setLoading(false);
+      if (data.status !== "researching") {
+        setResearching(false);
+      }
     } catch (err) {
       console.error(err);
       setLoading(false);
+    }
+  };
+
+  const loadProspects = async () => {
+    if (!campaignId || campaignId === "undefined") return;
+    
+    try {
+      const data = await api.prospects.list(campaignId);
+      setProspects(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleStartResearch = async () => {
+    if (!campaignId || campaignId === "undefined") {
+      alert("Invalid campaign ID");
+      return;
+    }
+    
+    setResearching(true);
+    try {
+      await api.campaigns.research(campaignId);
+      await loadCampaign();
+      await loadProspects();
+    } catch (err) {
+      console.error(err);
+      alert("Research failed. Please try again.");
+      setResearching(false);
     }
   };
 
@@ -107,7 +150,6 @@ export default function CampaignDetailPage() {
 
   const companyData = campaign.company_data || {};
   const newsData = campaign.news_data || {};
-  const contactsData = campaign.contacts_data || [];
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-8">
@@ -165,13 +207,46 @@ export default function CampaignDetailPage() {
           animate={{ opacity: 1, y: 0 }}
           className="bg-white rounded-2xl border border-slate-200 shadow-lg p-8 text-center space-y-4"
         >
-          <Sparkles size={48} className="mx-auto text-blue-600" />
+          <Sparkles size={48} className="mx-auto text-blue-600 animate-pulse" />
           <h3 className="text-xl font-bold text-slate-900">
             AI Agents are researching...
           </h3>
           <p className="text-slate-600">
             This usually takes 30-60 seconds. We're analyzing the company, finding news, and discovering contacts.
           </p>
+        </motion.div>
+      )}
+
+      {campaign.status === "draft" && !companyData.name && prospects.length === 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-2xl border border-slate-200 shadow-lg p-8 text-center space-y-4"
+        >
+          <Sparkles size={48} className="mx-auto text-slate-400" />
+          <h3 className="text-xl font-bold text-slate-900">
+            Ready to Research
+          </h3>
+          <p className="text-slate-600">
+            Click the button below to start AI research for this campaign.
+          </p>
+          <button
+            onClick={handleStartResearch}
+            disabled={researching}
+            className="px-8 py-4 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-lg hover:shadow-2xl hover:shadow-blue-500/30 transition-all disabled:opacity-50 flex items-center gap-2 mx-auto"
+          >
+            {researching ? (
+              <>
+                <Loader2 size={20} className="animate-spin" />
+                Researching...
+              </>
+            ) : (
+              <>
+                <Sparkles size={20} />
+                Start Research
+              </>
+            )}
+          </button>
         </motion.div>
       )}
 
@@ -273,26 +348,54 @@ export default function CampaignDetailPage() {
                 <Users size={24} className="text-white" />
               </div>
               <h2 className="text-xl font-bold text-slate-900">Key Contacts</h2>
+              {prospects.length > 0 && (
+                <span className="ml-auto text-sm text-slate-500">
+                  {prospects.length} prospects
+                </span>
+              )}
             </div>
             
-            {contactsData.length > 0 ? (
+            {prospects.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {contactsData.map((contact: any, i: number) => (
-                  <div key={i} className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-                    <h4 className="text-sm font-semibold text-slate-900">{contact.name}</h4>
-                    <p className="text-xs text-slate-600 mb-2">{contact.title}</p>
-                    <p className="text-xs text-slate-500">{contact.email_guess}</p>
+                {prospects.slice(0, 6).map((prospect: any) => (
+                  <div key={prospect.id} className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-sm font-bold">
+                        {prospect.name?.charAt(0) || '?'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm font-semibold text-slate-900 truncate">{prospect.name}</h4>
+                        <p className="text-xs text-slate-600 truncate">{prospect.title}</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-500 truncate">{prospect.email}</p>
+                    {prospect.department && (
+                      <span className="inline-block mt-2 px-2 py-1 rounded text-xs bg-blue-50 text-blue-700">
+                        {prospect.department}
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
             ) : (
               <p className="text-sm text-slate-500">No contacts discovered</p>
             )}
+            
+            {prospects.length > 6 && (
+              <div className="text-center pt-2">
+                <Link 
+                  href="/dashboard/prospects"
+                  className="text-sm text-blue-600 hover:text-blue-700 font-semibold"
+                >
+                  View all {prospects.length} prospects →
+                </Link>
+              </div>
+            )}
           </motion.div>
         </div>
       )}
 
-      {campaign.status === "draft" && companyData.name && (
+      {campaign.status === "draft" && (companyData.name || prospects.length > 0) && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

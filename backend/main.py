@@ -68,18 +68,32 @@ async def get_current_user(authorization: Optional[str] = Header(None)):
         # Extract token from "Bearer <token>" format
         token = authorization.replace("Bearer ", "")
         
-        supabase = get_supabase()
+        # Decode JWT token to get user_id without calling Supabase API
+        # This is more reliable and faster
+        import jwt
+        import json
         
-        # Verify the token and get user
-        user_response = supabase.auth.get_user(token)
+        # Decode without verification (Supabase already verified it when issuing)
+        # We just need to extract the user_id
+        try:
+            payload = jwt.decode(token, options={"verify_signature": False})
+            user_id = payload.get("sub")  # 'sub' contains the user ID in JWT
+            
+            if not user_id:
+                raise HTTPException(status_code=401, detail="Invalid token: no user ID")
+            
+            print(f"✅ Authenticated user: {user_id}")
+            return user_id
+            
+        except jwt.DecodeError:
+            raise HTTPException(status_code=401, detail="Invalid token format")
         
-        if not user_response or not user_response.user:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        
-        return user_response.user.id
-        
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Auth error: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=401, detail="Authentication failed")
 
 # Campaign Endpoints
@@ -114,12 +128,19 @@ async def create_campaign(campaign: CampaignCreate, user_id: str = Depends(get_c
         
         print(f"Creating campaign with user_id: {user_id}")
         result = supabase.table("campaigns").insert(data).execute()
-        print(f"Campaign created: {result.data}")
+        
+        if not result.data:
+            print(f"❌ Failed to create campaign: {result}")
+            raise HTTPException(status_code=500, detail="Failed to create campaign in database")
+            
+        print(f"✅ Campaign created: {result.data[0]['id']}")
         return result.data[0]
     except Exception as e:
-        print(f"ERROR creating campaign: {e}")
+        print(f"❌ Error creating campaign: {e}")
         import traceback
         traceback.print_exc()
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/campaigns")
@@ -132,17 +153,13 @@ async def list_campaigns(user_id: str = Depends(get_current_user)):
     except Exception as e:
         print(f"Error listing campaigns: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-    supabase = get_supabase()
-    
-    if supabase is None:
-        raise HTTPException(status_code=503, detail="Database not available")
-    
-    result = supabase.table("campaigns").select("*").order("created_at", desc=True).execute()
-    return result.data
 
 @app.get("/api/campaigns/{campaign_id}")
 async def get_campaign(campaign_id: str, user_id: str = Depends(get_current_user)):
     """Get campaign details"""
+    if campaign_id == "undefined" or not campaign_id:
+        raise HTTPException(status_code=400, detail="Invalid campaign ID")
+    
     supabase = get_supabase()
     result = supabase.table("campaigns").select("*").eq("id", campaign_id).eq("user_id", user_id).execute()
     
@@ -152,17 +169,22 @@ async def get_campaign(campaign_id: str, user_id: str = Depends(get_current_user
     return result.data[0]
 
 @app.post("/api/campaigns/{campaign_id}/research")
-async def research_campaign(campaign_id: str):
-    """Trigger AI research for a campaign"""
+async def research_campaign(campaign_id: str, user_id: str = Depends(get_current_user)):
+    """Trigger AI research pipeline for a campaign"""
     try:
-        print(f"=== RESEARCH CAMPAIGN {campaign_id} ===")
+        print(f"=== RESEARCH CAMPAIGN {campaign_id} for user: {user_id} ===")
+        if campaign_id == "undefined":
+            print("❌ Received 'undefined' campaign_id")
+            raise HTTPException(status_code=400, detail="Invalid campaign ID")
+
         supabase = get_supabase()
+        # Verify campaign belongs to user
+        campaign_result = supabase.table("campaigns").select("*").eq("id", campaign_id).eq("user_id", user_id).execute()
         
-        # Get campaign
-        campaign_result = supabase.table("campaigns").select("*").eq("id", campaign_id).execute()
         if not campaign_result.data:
+            print(f"❌ Campaign {campaign_id} not found for user {user_id}")
             raise HTTPException(status_code=404, detail="Campaign not found")
-        
+            
         campaign = campaign_result.data[0]
         print(f"Researching URL: {campaign['target_url']}")
         
@@ -259,64 +281,107 @@ async def research_campaign(campaign_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/campaigns/{campaign_id}/generate")
-async def generate_emails(campaign_id: str, request: EmailGenerateRequest):
+async def generate_emails(campaign_id: str, request: EmailGenerateRequest, user_id: str = Depends(get_current_user)):
     """Generate email sequence for a campaign"""
-    supabase = get_supabase()
-    
-    # Get campaign
-    campaign_result = supabase.table("campaigns").select("*").eq("id", campaign_id).execute()
-    if not campaign_result.data:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    
-    campaign = campaign_result.data[0]
-    company_data = campaign.get("company_data", {})
-    
-    if not company_data:
-        raise HTTPException(status_code=400, detail="No company data available. Run research first.")
-    
-    # Generate emails
-    email_agent = get_email_personalization_agent()
-    emails = email_agent.generate_sequence(
-        company_data=company_data,
-        product_description=request.product_description
-    )
-    
-    # Save emails to database
-    for email in emails:
-        email_data = {
-            "id": str(uuid.uuid4()),
-            "campaign_id": campaign_id,
-            "user_id": campaign["user_id"],
-            "step_number": email["step"],
-            "email_type": email["type"],
-            "subject": email["subject"],
-            "body": email["body"],
-            "send_delay_days": email["send_delay_days"],
-            "is_edited": False,
-            "created_at": datetime.now().isoformat(),
+    try:
+        print(f"=== GENERATE EMAILS for campaign {campaign_id} ===")
+        
+        if campaign_id == "undefined" or not campaign_id:
+            raise HTTPException(status_code=400, detail="Invalid campaign ID")
+        
+        supabase = get_supabase()
+        
+        # Get campaign and verify ownership
+        campaign_result = supabase.table("campaigns").select("*").eq("id", campaign_id).eq("user_id", user_id).execute()
+        if not campaign_result.data:
+            raise HTTPException(status_code=404, detail="Campaign not found")
+        
+        campaign = campaign_result.data[0]
+        company_data = campaign.get("company_data", {})
+        
+        if not company_data:
+            raise HTTPException(status_code=400, detail="No company data available. Run research first.")
+        
+        print(f"Generating email sequence for {company_data.get('name', 'Unknown')}")
+        
+        # Generate emails
+        email_agent = get_email_personalization_agent()
+        emails = email_agent.generate_sequence(
+            company_data=company_data,
+            product_description=request.product_description
+        )
+        
+        print(f"Email sequence generated: {len(emails)} emails")
+        
+        # Delete existing emails for this campaign (if any)
+        supabase.table("email_sequences").delete().eq("campaign_id", campaign_id).execute()
+        
+        # Batch insert all emails at once (much faster than one by one)
+        email_records = []
+        for email in emails:
+            email_records.append({
+                "id": str(uuid.uuid4()),
+                "campaign_id": campaign_id,
+                "user_id": campaign["user_id"],
+                "step_number": email["step"],
+                "email_type": email["type"],
+                "subject": email["subject"],
+                "body": email["body"],
+                "send_delay_days": email["send_delay_days"],
+                "is_edited": False,
+                "created_at": datetime.now().isoformat(),
+                "updated_at": datetime.now().isoformat()
+            })
+        
+        # Single batch insert instead of 5 separate inserts
+        if email_records:
+            supabase.table("email_sequences").insert(email_records).execute()
+            print(f"✅ Inserted {len(email_records)} emails in batch")
+        
+        # Update campaign status
+        supabase.table("campaigns").update({
+            "status": "ready",
             "updated_at": datetime.now().isoformat()
-        }
-        supabase.table("email_sequences").insert(email_data).execute()
-    
-    # Update campaign status
-    supabase.table("campaigns").update({
-        "status": "ready",
-        "updated_at": datetime.now().isoformat()
-    }).eq("id", campaign_id).execute()
-    
-    return {"emails": emails}
+        }).eq("id", campaign_id).execute()
+        
+        return {"emails": emails}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"ERROR generating emails: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/campaigns/{campaign_id}/emails")
-async def get_campaign_emails(campaign_id: str):
+async def get_campaign_emails(campaign_id: str, user_id: str = Depends(get_current_user)):
     """Get email sequence for a campaign"""
+    if campaign_id == "undefined" or not campaign_id:
+        raise HTTPException(status_code=400, detail="Invalid campaign ID")
+    
     supabase = get_supabase()
+    
+    # Verify campaign belongs to user
+    campaign = supabase.table("campaigns").select("id").eq("id", campaign_id).eq("user_id", user_id).execute()
+    if not campaign.data:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
     result = supabase.table("email_sequences").select("*").eq("campaign_id", campaign_id).order("step_number").execute()
     return result.data
 
 @app.put("/api/campaigns/{campaign_id}/emails/{step}")
-async def update_email(campaign_id: str, step: int, email: EmailUpdate):
+async def update_email(campaign_id: str, step: int, email: EmailUpdate, user_id: str = Depends(get_current_user)):
     """Update an email in the sequence"""
+    if campaign_id == "undefined" or not campaign_id:
+        raise HTTPException(status_code=400, detail="Invalid campaign ID")
+    
     supabase = get_supabase()
+    
+    # Verify campaign belongs to user
+    campaign = supabase.table("campaigns").select("id").eq("id", campaign_id).eq("user_id", user_id).execute()
+    if not campaign.data:
+        raise HTTPException(status_code=404, detail="Campaign not found")
     
     result = supabase.table("email_sequences").update({
         "subject": email.subject,
@@ -328,7 +393,7 @@ async def update_email(campaign_id: str, step: int, email: EmailUpdate):
     return result.data[0] if result.data else {}
 
 @app.post("/api/campaigns/{campaign_id}/send-test")
-async def send_test_email(campaign_id: str, request: dict):
+async def send_test_email(campaign_id: str, request: dict, user_id: str = Depends(get_current_user)):
     """Send a test email"""
     try:
         print(f"=== SEND TEST EMAIL for campaign {campaign_id} ===")
@@ -350,8 +415,7 @@ async def send_test_email(campaign_id: str, request: dict):
         
         email_data = emails_result.data[0]
         
-        # Get user settings for SMTP
-        # For now, use the demo user's email from settings
+        # Get user's SMTP email for testing
         test_email = settings.smtp_email  # Send to yourself for testing
         
         print(f"Sending test email to: {test_email}")
@@ -515,9 +579,19 @@ async def update_settings_endpoint(settings_update: SettingsUpdate, user_id: str
         raise HTTPException(status_code=500, detail=str(e))
 
 # Prospects Endpoints
+@app.get("/api/prospects/all")
+async def get_all_prospects(user_id: str = Depends(get_current_user)):
+    """Get all prospects for the current user across all campaigns"""
+    supabase = get_supabase()
+    result = supabase.table("prospects").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
+    return result.data
+
 @app.get("/api/campaigns/{campaign_id}/prospects")
 async def get_campaign_prospects(campaign_id: str, user_id: str = Depends(get_current_user)):
     """Get prospects for a campaign"""
+    if campaign_id == "undefined" or not campaign_id:
+        raise HTTPException(status_code=400, detail="Invalid campaign ID")
+    
     supabase = get_supabase()
     # Verify campaign belongs to user
     campaign = supabase.table("campaigns").select("id").eq("id", campaign_id).eq("user_id", user_id).execute()

@@ -55,8 +55,9 @@ export default function DashboardPage() {
       
       // Fetch campaigns
       const campaignsData = await api.campaigns.list();
-      setCampaigns(campaignsData || []);
-      setFilteredCampaigns(campaignsData || []);
+      const campaignsArray = Array.isArray(campaignsData) ? campaignsData : [];
+      setCampaigns(campaignsArray);
+      setFilteredCampaigns(campaignsArray);
       
       // Fetch analytics
       const analyticsData = await api.analytics.overview();

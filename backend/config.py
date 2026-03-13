@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     smtp_email: str = ""
     smtp_app_password: str = ""
     
+    # Email Finding
+    hunter_api_key: str = ""
+    
     # Scraper
     scraper_timeout: int = 30
     scraper_user_agent: str = "Mozilla/5.0"

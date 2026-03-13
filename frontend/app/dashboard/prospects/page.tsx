@@ -4,6 +4,24 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Users, Search, Loader2, Mail, Briefcase, Building2, Plus, X } from "lucide-react";
 import { api } from "@/lib/api";
+import { createClient } from "@/lib/supabase";
+
+// Helper to get auth headers
+async function getAuthHeaders() {
+  const supabase = createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  
+  if (session?.access_token) {
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`
+    };
+  }
+  
+  return {
+    'Content-Type': 'application/json'
+  };
+}
 
 export default function ProspectsPage() {
   const [prospects, setProspects] = useState<any[]>([]);
@@ -28,23 +46,25 @@ export default function ProspectsPage() {
 
   const loadData = async () => {
     try {
-      const campaignsData = await api.campaigns.list();
-      setCampaigns(campaignsData);
+      // Load campaigns and all prospects in parallel (much faster)
+      const [campaignsData, allProspectsData] = await Promise.all([
+        api.campaigns.list(),
+        fetch('http://localhost:8000/api/prospects/all', {
+          headers: await getAuthHeaders()
+        }).then(r => r.json()).catch(() => [])
+      ]);
       
-      const allProspects: any[] = [];
-      for (const campaign of campaignsData) {
-        try {
-          const campaignProspects = await api.prospects.list(campaign.id);
-          allProspects.push(...campaignProspects.map((p: any) => ({
-            ...p,
-            campaign_name: campaign.name
-          })));
-        } catch (err) {
-          console.error(`Failed to load prospects for campaign ${campaign.id}`, err);
-        }
-      }
+      const campaignsArray = Array.isArray(campaignsData) ? campaignsData : [];
+      setCampaigns(campaignsArray);
       
-      setProspects(allProspects);
+      // Map campaign names to prospects
+      const campaignMap = new Map(campaignsArray.map(c => [c.id, c.name]));
+      const prospectsWithCampaigns = (Array.isArray(allProspectsData) ? allProspectsData : []).map((p: any) => ({
+        ...p,
+        campaign_name: campaignMap.get(p.campaign_id) || 'Unknown'
+      }));
+      
+      setProspects(prospectsWithCampaigns);
       setLoading(false);
     } catch (err) {
       console.error(err);
