@@ -1,4 +1,6 @@
 # Cold AutoPilot Outreach
+<img width="1918" height="917" alt="image" src="https://github.com/user-attachments/assets/9ee74c6c-e80b-4d0b-91a6-a3fe0062aa3e" />
+
 
 **AI-Powered Sales Automation Platform** - Automate your B2B outreach with intelligent company research, contact discovery, and personalized email sequences.
 
