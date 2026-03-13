@@ -1,16 +1,14 @@
 services:
   - type: web
     name: autopilot-backend
-    env: python
+    runtime: python
     region: oregon
     plan: free
-    buildCommand: pip install --upgrade pip && pip install -r backend/requirements.txt
+    buildCommand: cd backend && pip install --upgrade pip && pip install -r requirements.txt && playwright install chromium
     startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.9
-      - key: PIP_NO_CACHE_DIR
-        value: 1
+        value: "3.11"
       - key: GROQ_API_KEY
         sync: false
       - key: SUPABASE_URL
@@ -24,8 +22,12 @@ services:
       - key: SMTP_HOST
         value: smtp.gmail.com
       - key: SMTP_PORT
-        value: 587
+        value: "587"
       - key: SMTP_EMAIL
         sync: false
       - key: SMTP_APP_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: SESSION_SECRET
         sync: false

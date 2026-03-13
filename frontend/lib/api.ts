@@ -1,7 +1,7 @@
 import { createClient } from "./supabase";
 
-// Use relative URL for production (Vercel), absolute for local dev
-const API_URL = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:8000' : '');
+// Backend API URL - use environment variable or default to localhost
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 // Helper to get auth headers
 async function getAuthHeaders(): Promise<Record<string, string>> {
