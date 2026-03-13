@@ -72,7 +72,8 @@
 *AI-powered campaign setup in seconds - just enter a company URL and let AI do the scraping and research*
 
 ### Company Research & Key Contacts
-![Company Profile](./screenshots/outreach%204.png)
+![Prospects](./screenshots/1%20outreach.png)
+
 *Automated company analysis with news intelligence and verified contact discovery*
 
 ### View all the prospects from each campaign
@@ -83,7 +84,7 @@
 *Personalized 5-step email sequences: Intro → Value → Social Proof → Reminder → Breakup*
 
 ### Prospects Management
-![Prospects](./screenshots/1%20outreach.png)
+![Company Profile](./screenshots/outreach%204.png)
 *Manage all discovered contacts with verified emails, titles, and departments*
 
 ### SMTP Configuration & Testing
