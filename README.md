@@ -83,7 +83,7 @@
 ![Email Sequence](./screenshots/outreach%205.png)
 *Personalized 5-step email sequences: Intro → Value → Social Proof → Reminder → Breakup*
 
-### Prospects Management
+### SMTP email test
 ![Company Profile](./screenshots/outreach%204.png)
 *Manage all discovered contacts with verified emails, titles, and departments*
 
