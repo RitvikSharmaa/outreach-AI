@@ -64,7 +64,7 @@
 ## 📸 Screenshots
 
 ### Dashboard Overview
-![Dashboard](./screenshots/outreach%206.png)
+![Email Test](./screenshots/outreach%202.png)
 *Track your outreach performance at a glance - view campaigns, prospects, emails sent, and open rates*
 
 ### Create new Campaign
@@ -91,9 +91,8 @@
 ![Settings](./screenshots/outreach%203.png)
 *Easy SMTP setup with one-click test email verification*
 
-### Email Delivery Confirmation
-![Email Test](./screenshots/outreach%202.png)
-*Successful email configuration test - ready to send personalized campaigns*
+
+
 
 
 
