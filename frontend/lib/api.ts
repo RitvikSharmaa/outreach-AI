@@ -4,7 +4,7 @@ import { createClient } from "./supabase";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:8000' : '');
 
 // Helper to get auth headers
-async function getAuthHeaders() {
+async function getAuthHeaders(): Promise<Record<string, string>> {
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
   
@@ -16,7 +16,8 @@ async function getAuthHeaders() {
   }
   
   return {
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'Authorization': ''
   };
 }
 
