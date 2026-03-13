@@ -1,4 +1,4 @@
-# 🚀 AutoPilot Outreach
+# Cold AutoPilot Outreach
 
 **AI-Powered Sales Automation Platform** - Automate your B2B outreach with intelligent company research, contact discovery, and personalized email sequences.
 
@@ -67,13 +67,16 @@
 ![Dashboard](./screenshots/outreach%206.png)
 *Track your outreach performance at a glance - view campaigns, prospects, emails sent, and open rates*
 
-### Create New Campaign
-![Create Campaign](./screenshots/outreach%207.png)
-*AI-powered campaign setup in seconds - just enter a company URL and let AI do the research*
+### Create new Campaign
+![Email Example](./screenshots/outreach%208.png)
+*AI-powered campaign setup in seconds - just enter a company URL and let AI do the scraping and research*
 
 ### Company Research & Key Contacts
 ![Company Profile](./screenshots/outreach%204.png)
 *Automated company analysis with news intelligence and verified contact discovery*
+
+### View all the prospects from each campaign
+![Create Campaign](./screenshots/outreach%207.png)
 
 ### AI-Generated Email Sequences
 ![Email Sequence](./screenshots/outreach%205.png)
@@ -91,9 +94,7 @@
 ![Email Test](./screenshots/outreach%202.png)
 *Successful email configuration test - ready to send personalized campaigns*
 
-### Personalized Email Example
-![Email Example](./screenshots/outreach%208.png)
-*AI-generated personalized email based on company research and recent news*
+
 
 ---
 
