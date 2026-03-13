@@ -1,13 +1,7 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import BaseSettings
 from functools import lru_cache
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file="../.env",
-        env_file_encoding='utf-8',
-        case_sensitive=False
-    )
-    
     # App Config
     app_name: str = "AutoPilot-Outreach"
     environment: str = "development"
@@ -52,6 +46,11 @@ class Settings(BaseSettings):
     enable_email_tracking: bool = True
     enable_open_tracking: bool = True
     enable_click_tracking: bool = True
+    
+    class Config:
+        env_file = "../.env"
+        env_file_encoding = 'utf-8'
+        case_sensitive = False
 
 @lru_cache()
 def get_settings() -> Settings:
